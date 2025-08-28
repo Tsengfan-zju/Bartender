@@ -45,12 +45,7 @@ function Home() {
           </Link>
         </div>
         
-        {/* 图片插入指南链接 */}
-        <div className="guide-link-container">
-          <Link to="/image-guide" className="guide-link">
-            查看图片插入指南
-          </Link>
-        </div>
+
       </main>
     </div>
   );

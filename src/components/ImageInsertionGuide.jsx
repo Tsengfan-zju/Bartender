@@ -59,13 +59,7 @@ function ImageInsertionGuide() {
         <p>在对应的CSS文件中添加图片样式：</p>
         <div className="code-block">
           {/* 在CSS文件中添加 */}
-          .beer-image {
-            width: 100%;
-            max-width: 500px;
-            height: auto;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-          }
+          {`.beer-image {\n  width: 100%;\n  max-width: 500px;\n  height: auto;\n  border-radius: 8px;\n  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);\n}`}
         </div>
       </div>
 
