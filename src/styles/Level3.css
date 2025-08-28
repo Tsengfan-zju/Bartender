@@ -1,0 +1,289 @@
+/* 全局样式重置和基础设置 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.6;
+  color: #333;
+  background-color: #f5f5f5;
+}
+
+/* Level3页面容器 */
+.level3-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 头部样式 */
+.level3-header {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+  text-align: center;
+  padding: 2rem 1rem;
+  margin-bottom: 2rem;
+}
+
+.level3-header h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.level3-header p {
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+/* 主内容区样式 */
+.level3-main {
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* 面包屑导航 */
+.breadcrumb {
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.breadcrumb a {
+  color: #4facfe;
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+/* 场景选择器样式 */
+.scenario-selector {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.scenario-btn {
+  padding: 0.8rem 1.5rem;
+  border: none;
+  border-radius: 5px;
+  background-color: #e0e0e0;
+  color: #333;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 150px;
+}
+
+.scenario-btn:hover {
+  background-color: #d0d0d0;
+}
+
+.scenario-btn.active {
+  background-color: #4facfe;
+  color: white;
+}
+
+/* 步骤导航器样式 */
+.step-navigator {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.step-btn {
+  width: 40px;
+  height: 40px;
+  border: 2px solid #4facfe;
+  border-radius: 50%;
+  background-color: white;
+  color: #4facfe;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.step-btn:hover {
+  background-color: #f0f0f0;
+}
+
+.step-btn.active {
+  background-color: #4facfe;
+  color: white;
+}
+
+/* 步骤内容区域样式 */
+.step-content {
+  margin-bottom: 2rem;
+}
+
+.step-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  align-items: center;
+}
+
+.step-item.hidden {
+  display: none;
+}
+
+/* 保持600*1024的图片比例 */
+.step-image {
+  width: 100%;
+  max-width: 400px;
+  aspect-ratio: 600 / 1024;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.placeholder-image {
+  width: 100%;
+  height: 100%;
+  background-color: #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1rem;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><rect width="100%" height="100%" fill="%23e0e0e0"/><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="16" fill="%23999">管理界面截图占位</text></svg>');
+}
+
+.placeholder-image p {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+/* 步骤描述样式 */
+.step-description {
+  max-width: 600px;
+  text-align: center;
+}
+
+.step-description h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: #4facfe;
+}
+
+.step-description p {
+  font-size: 1.1rem;
+  color: #666;
+  line-height: 1.8;
+}
+
+/* 导航按钮样式 */
+.navigation-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.nav-btn {
+  padding: 0.8rem 2rem;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 100px;
+}
+
+.prev-btn {
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+.prev-btn:hover:not(:disabled) {
+  background-color: #d0d0d0;
+}
+
+.next-btn {
+  background-color: #4facfe;
+  color: white;
+}
+
+.next-btn:hover:not(:disabled) {
+  background-color: #3ea5f5;
+}
+
+.nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 响应式设计 - 平板设备 */
+@media (max-width: 768px) {
+  .level3-header h1 {
+    font-size: 1.8rem;
+  }
+  
+  .step-item {
+    flex-direction: column;
+  }
+  
+  .step-image {
+    max-width: 300px;
+  }
+  
+  .step-description h3 {
+    font-size: 1.3rem;
+  }
+  
+  .step-description p {
+    font-size: 1rem;
+  }
+}
+
+/* 响应式设计 - 手机设备 */
+@media (max-width: 480px) {
+  .level3-header {
+    padding: 1.5rem 1rem;
+  }
+  
+  .level3-header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .level3-header p {
+    font-size: 1rem;
+  }
+  
+  .scenario-btn {
+    min-width: 120px;
+    padding: 0.7rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .step-btn {
+    width: 35px;
+    height: 35px;
+    font-size: 0.9rem;
+  }
+  
+  .step-image {
+    max-width: 250px;
+  }
+  
+  .step-description h3 {
+    font-size: 1.2rem;
+  }
+  
+  .nav-btn {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+  }
+}

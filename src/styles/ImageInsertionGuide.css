@@ -1,0 +1,87 @@
+/* 图片插入指南页面样式 */
+.image-guide-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.image-guide-container h1 {
+  text-align: center;
+  color: #333;
+  margin-bottom: 2rem;
+}
+
+.guide-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.guide-section h2 {
+  color: #667eea;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 0.5rem;
+}
+
+.guide-section p {
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+.guide-section ul {
+  margin-left: 2rem;
+  margin-bottom: 1rem;
+}
+
+.guide-section li {
+  margin-bottom: 0.5rem;
+}
+
+.code-block {
+  background-color: #2d2d2d;
+  color: #f8f8f2;
+  padding: 1rem;
+  border-radius: 5px;
+  overflow-x: auto;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9rem;
+}
+
+.code-block code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.code-block ul {
+  margin-left: 1.5rem;
+  color: #a6e22e;
+}
+
+.back-link {
+  display: inline-block;
+  margin-top: 2rem;
+  padding: 0.5rem 1rem;
+  background-color: #667eea;
+  color: white;
+  text-decoration: none;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+.back-link:hover {
+  background-color: #5a67d8;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .image-guide-container {
+    padding: 1rem;
+  }
+  
+  .guide-section {
+    padding: 1rem;
+  }
+}
