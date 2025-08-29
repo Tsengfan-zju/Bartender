@@ -1,13 +1,14 @@
-import { defineConfig} from 'vite'
+// vite.config.js
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-const REPO_NAME = "Bartender";
-
-// https://vite.dev/config/
 export default defineConfig({
-  base: `/Bartender/`, 
+  base: '/Bartender/',     // ← 必须与仓库名大小写一致
   plugins: [react()],
-});
+})
+
+
+
 // export default defineConfig(({ mode }) => {
 //   // 加载环境变量
 //   const env = loadEnv(mode, process.cwd(), '')
