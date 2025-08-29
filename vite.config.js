@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from "@tailwindcss/vite";
 
 // 你的仓库名称
-const REPO_NAME = "Bartender";
+const REPO_NAME = ".";
 
 // https://vite.dev/config/
 export default defineConfig({
