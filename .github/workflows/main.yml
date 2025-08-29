@@ -48,5 +48,5 @@ jobs:
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4  # 建议升级到最新版
         with:
-          github_token: ${{ secrets.happykk }}  # 使用默认 token 更安全
+          github_token: ${{ secrets.GITHUB_TOKEN }}  # 使用默认 token 更安全
           publish_dir: ./dist
