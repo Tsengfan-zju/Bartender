@@ -12,15 +12,16 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4  # 建议升级到最新版
 
       - name: Setup Node
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v4
         with:
-          node-version: 16
+          node-version: '20'  # 符合 Vite 要求的版本
+          cache: 'npm'
 
       - name: Install dependencies
-        uses: bahmutov/npm-install@v1
+        run: npm install  # 更直接的安装方式
 
       - name: Build project
         run: npm run build
@@ -39,13 +40,13 @@ jobs:
 
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: production-files
           path: ./dist
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4  # 建议升级到最新版
         with:
-          github_token: ${{ secrets.happykk  }}
+          github_token: ${{ secrets.happykk }}  # 使用默认 token 更安全
           publish_dir: ./dist
