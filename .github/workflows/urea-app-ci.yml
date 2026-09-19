@@ -53,9 +53,11 @@ jobs:
           cp build-src/DeviceModel.java UreaClientApp/app/src/main/java/com/urea/selfservice/client/DeviceModel.java
           cp build-src/NearbyDevicesActivity.java UreaClientApp/app/src/main/java/com/urea/selfservice/client/NearbyDevicesActivity.java
           cp build-src/AmapBootstrap.java UreaClientApp/app/src/main/java/com/urea/selfservice/client/AmapBootstrap.java
+          cp build-src/UreaApplication.java UreaClientApp/app/src/main/java/com/urea/selfservice/client/UreaApplication.java
           test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/ApiClient.java
           test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/DeviceModel.java
           test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/NearbyDevicesActivity.java
+          test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/UreaApplication.java
           test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/MainActivity.java
           test -s UreaClientApp/app/build.gradle
 
