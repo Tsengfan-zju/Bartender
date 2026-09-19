@@ -49,6 +49,13 @@ jobs:
           cp build-src/network_security_config.xml UreaClientApp/app/src/main/res/xml/network_security_config.xml
           cp build-src/backup_rules.xml UreaClientApp/app/src/main/res/xml/backup_rules.xml
           cp build-src/data_extraction_rules.xml UreaClientApp/app/src/main/res/xml/data_extraction_rules.xml
+          cp build-src/ApiClient.java UreaClientApp/app/src/main/java/com/urea/selfservice/client/ApiClient.java
+          cp build-src/DeviceModel.java UreaClientApp/app/src/main/java/com/urea/selfservice/client/DeviceModel.java
+          cp build-src/NearbyDevicesActivity.java UreaClientApp/app/src/main/java/com/urea/selfservice/client/NearbyDevicesActivity.java
+          cp build-src/AmapBootstrap.java UreaClientApp/app/src/main/java/com/urea/selfservice/client/AmapBootstrap.java
+          test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/ApiClient.java
+          test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/DeviceModel.java
+          test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/NearbyDevicesActivity.java
           test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/MainActivity.java
           test -s UreaClientApp/app/build.gradle
 
