@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ main ]
     paths:
-      - 'UreaClientApp-source-v1.0.0.zip'
+      - 'build-src/**'
       - '.github/workflows/urea-app-ci.yml'
 
 permissions:
@@ -29,7 +29,6 @@ jobs:
 
       - name: Prepare Android SDK
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
@@ -40,8 +39,11 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Unpack source
-        run: unzip -q UreaClientApp-source-v1.0.0.zip
+      - name: Reassemble source
+        run: |
+          cat build-src/part-* > UreaClientApp-source-v1.0.0.zip
+          unzip -t UreaClientApp-source-v1.0.0.zip
+          unzip -q UreaClientApp-source-v1.0.0.zip
 
       - name: Build release APK
         working-directory: UreaClientApp
