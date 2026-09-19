@@ -63,18 +63,19 @@ jobs:
         working-directory: UreaClientApp
         run: gradle --no-daemon --stacktrace assembleRelease
 
-      - name: Prepare artifact
+      - name: Align and prepare artifact
         run: |
           mkdir -p ci-output/build-tools/lib
-          cp UreaClientApp/app/build/outputs/apk/release/app-release-unsigned.apk ci-output/
-          cp "$ANDROID_HOME/build-tools/35.0.0/apksigner" ci-output/build-tools/
-          cp "$ANDROID_HOME/build-tools/35.0.0/zipalign" ci-output/build-tools/
+          UNSIGNED=UreaClientApp/app/build/outputs/apk/release/app-release-unsigned.apk
+          ALIGNED=ci-output/app-release-aligned-unsigned.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -p 4 "$UNSIGNED" "$ALIGNED"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$ALIGNED" | tail -5 | tee ci-output/ZIPALIGN.txt
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" ci-output/build-tools/lib/
-          sha256sum ci-output/app-release-unsigned.apk | tee ci-output/SHA256.txt
+          sha256sum "$ALIGNED" | tee ci-output/SHA256.txt
 
-      - name: Upload unsigned APK and signer
+      - name: Upload aligned APK and signer
         uses: actions/upload-artifact@v4
         with:
-          name: urea-client-unsigned-apk
+          name: urea-client-aligned-apk
           path: ci-output/
           if-no-files-found: error
