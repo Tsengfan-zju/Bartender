@@ -44,7 +44,11 @@ jobs:
           cat build-src/part-* > UreaClientApp-source-v1.0.0.zip
           unzip -o UreaClientApp-source-v1.0.0.zip || true
           test -d UreaClientApp/app/src/main/java/com/urea/selfservice/client
+          mkdir -p UreaClientApp/app/src/main/res/xml UreaClientApp/app/src/main/res/layout
           cp build-src/activity_device_detail.xml UreaClientApp/app/src/main/res/layout/activity_device_detail.xml
+          cp build-src/network_security_config.xml UreaClientApp/app/src/main/res/xml/network_security_config.xml
+          cp build-src/backup_rules.xml UreaClientApp/app/src/main/res/xml/backup_rules.xml
+          cp build-src/data_extraction_rules.xml UreaClientApp/app/src/main/res/xml/data_extraction_rules.xml
           test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/MainActivity.java
           test -s UreaClientApp/app/build.gradle
 
