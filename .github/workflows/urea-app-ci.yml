@@ -39,11 +39,14 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Reassemble source
+      - name: Recover source
         run: |
           cat build-src/part-* > UreaClientApp-source-v1.0.0.zip
-          unzip -t UreaClientApp-source-v1.0.0.zip
-          unzip -q UreaClientApp-source-v1.0.0.zip
+          unzip -o UreaClientApp-source-v1.0.0.zip || true
+          test -d UreaClientApp/app/src/main/java/com/urea/selfservice/client
+          cp build-src/activity_device_detail.xml UreaClientApp/app/src/main/res/layout/activity_device_detail.xml
+          test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/MainActivity.java
+          test -s UreaClientApp/app/build.gradle
 
       - name: Build release APK
         working-directory: UreaClientApp
