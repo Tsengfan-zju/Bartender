@@ -41,7 +41,17 @@ jobs:
 
       - name: Recover V1.1 source
         run: |
-          cat build-src/v11s-* > UreaClientApp-source-v1.1.0.zip
+          cat \
+            build-src/v11s-00 \
+            build-src/v11s-01x-* \
+            build-src/v11s-02 \
+            build-src/v11s-03 \
+            build-src/v11s-04x-* \
+            build-src/v11s-05 \
+            build-src/v11s-06 \
+            build-src/v11s-07 \
+            build-src/v11s-08x-* \
+            build-src/v11s-09 > UreaClientApp-source-v1.1.0.zip
           echo "60999cf30324fc1b34e158b265e84589b4b3acd02a583f537b2f9bb0427b08ed  UreaClientApp-source-v1.1.0.zip" | sha256sum -c -
           unzip -o UreaClientApp-source-v1.1.0.zip
           test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/UreaApplication.java
