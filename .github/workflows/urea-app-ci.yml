@@ -59,7 +59,7 @@ jobs:
           test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/OrdersActivity.java
           test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/SalesActivity.java
           test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/AlertsActivity.java
-          grep -q 'versionName "1.1.0"' UreaClientApp/app/build.gradle
+          grep -q "versionName '1.1.0'" UreaClientApp/app/build.gradle
 
       - name: Build release APK
         working-directory: UreaClientApp
