@@ -1,0 +1,107 @@
+name: VisualPix NetFX Inspect
+on:
+  push:
+    branches: [tmp-visualpix-build]
+    paths: ['.github/workflows/visualpix-netfx.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and install Visual Pix
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force out | Out-Null
+          [IO.File]::WriteAllBytes((Join-Path $PWD 'out\base.pix'),[Convert]::FromBase64String((Get-Content vp-build/base.pix.b64 -Raw).Trim()))
+          $url='https://www.sany-semi.com/download/visual-pix_setup_1-7-1-172/?wpdmdl=3783'
+          & curl.exe -L --fail --max-time 180 -A 'Mozilla/5.0' -o out\vp.zip $url
+          Expand-Archive out\vp.zip -DestinationPath out\installer -Force
+          $setup=Get-ChildItem out\installer -Recurse -Filter 'Visual-PIX_Setup*.exe' | Select-Object -First 1
+          if(!$setup){throw 'setup not found'}
+          $install=Join-Path $PWD 'out\VisualPix'
+          $p=Start-Process $setup.FullName -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$install") -Wait -PassThru
+          if($p.ExitCode -ne 0){throw "setup exit $($p.ExitCode)"}
+          (Join-Path $install 'Visual-PIX.exe') | Out-File out\vp_path.txt
+      - name: Inspect using Windows PowerShell 5.1 / .NET Framework
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Continue'
+          $out=Join-Path $PWD 'out'
+          $vp=(Get-Content "$out\vp_path.txt" -Raw).Trim()
+          Set-Location (Split-Path $vp)
+          try {
+            $asm=[Reflection.Assembly]::LoadFrom($vp)
+            "CLR=$([Environment]::Version) ASM=$($asm.FullName)" | Out-File "$out\netfx_reflection.txt"
+            try {$types=$asm.GetTypes()} catch [Reflection.ReflectionTypeLoadException] {
+              $_.Exception.LoaderExceptions | ForEach-Object {$_.ToString()} | Out-File "$out\loader_errors.txt"
+              $types=$_.Exception.Types | Where-Object {$_}
+            }
+            "TYPECOUNT=$($types.Count)" | Add-Content "$out\netfx_reflection.txt"
+            $focus=$types | Where-Object {$_.FullName -match 'PixProject|PixLayer|PixControl|TextCtrl|ButtonCtrl|QRCodeCtrl|ProtocolCtrl'}
+            foreach($t in $focus){
+              "`r`nTYPE $($t.FullName) BASE=$($t.BaseType.FullName)" | Add-Content "$out\netfx_reflection.txt"
+              $t.GetConstructors([Reflection.BindingFlags]'Public,NonPublic,Instance') | ForEach-Object {"CTOR $_"} | Add-Content "$out\netfx_reflection.txt"
+              $t.GetProperties([Reflection.BindingFlags]'Public,NonPublic,Instance,Static') | ForEach-Object {"PROP $($_.PropertyType.FullName) $($_.Name) R=$($_.CanRead) W=$($_.CanWrite)"} | Add-Content "$out\netfx_reflection.txt"
+              $t.GetFields([Reflection.BindingFlags]'Public,NonPublic,Instance,Static') | ForEach-Object {"FIELD $($_.FieldType.FullName) $($_.Name)"} | Add-Content "$out\netfx_reflection.txt"
+            }
+            $pixType=$types | Where-Object {$_.FullName -eq 'Visual_PIX.Model.PixProject'} | Select-Object -First 1
+            if(!$pixType){throw 'PixProject type missing'}
+            $cands=@()
+            foreach($t in $types){
+              try {
+                $lm=@($t.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance') | Where-Object {$_.ReturnType -eq $pixType -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType -eq [string]})
+                if($lm.Count -gt 0){$cands += ,@($t,$lm)}
+              } catch {}
+            }
+            foreach($c in $cands){
+              $t=$c[0]; $lm=$c[1]
+              "CANDIDATE $($t.FullName)" | Add-Content "$out\serializer_candidates.txt"
+              $lm | ForEach-Object {" LOAD $_"} | Add-Content "$out\serializer_candidates.txt"
+              $t.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance') | Where-Object {$_.GetParameters().Count -eq 2 -and $_.GetParameters()[0].ParameterType -eq $pixType -and $_.GetParameters()[1].ParameterType -eq [string]} | ForEach-Object {" SAVE $_"} | Add-Content "$out\serializer_candidates.txt"
+            }
+            $blank=Join-Path $out 'base.pix'
+            foreach($c in $cands){
+              $t=$c[0]
+              foreach($m in $c[1]){
+                try {
+                  "TRY $($t.FullName)::$($m.Name)" | Add-Content "$out\load_attempt.txt"
+                  $obj=[Activator]::CreateInstance($t,$true)
+                  $proj=$m.Invoke($obj,@($blank))
+                  if($proj){
+                    "SUCCESS $($t.FullName)::$($m.Name)" | Add-Content "$out\load_attempt.txt"
+                    [IO.File]::WriteAllText("$out\success_serializer.txt","$($t.FullName)`r`n$($m.Name)`r`n")
+                    foreach($p in $pixType.GetProperties([Reflection.BindingFlags]'Public,NonPublic,Instance')){
+                      try {$v=$p.GetValue($proj,$null); "PROP $($p.Name) TYPE=$($p.PropertyType.FullName) VALUE=$v" | Add-Content "$out\project_dump.txt"} catch {"PROP $($p.Name) ERR=$($_.Exception.Message)" | Add-Content "$out\project_dump.txt"}
+                    }
+                    # Dump enumerable properties one level deeper
+                    foreach($p in $pixType.GetProperties([Reflection.BindingFlags]'Public,NonPublic,Instance')){
+                      try {
+                        $v=$p.GetValue($proj,$null)
+                        if($v -is [System.Collections.IEnumerable] -and !($v -is [string])){
+                          $i=0; foreach($item in $v){"ENUM $($p.Name)[$i] TYPE=$($item.GetType().FullName) VALUE=$item" | Add-Content "$out\project_dump.txt"; $i++; if($i -ge 20){break}}
+                        }
+                      } catch {}
+                    }
+                    # Find save method on same object
+                    $save=$t.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance') | Where-Object {$_.ReturnType -eq [void] -and $_.GetParameters().Count -eq 2 -and $_.GetParameters()[0].ParameterType -eq $pixType -and $_.GetParameters()[1].ParameterType -eq [string]} | Select-Object -First 1
+                    if($save){
+                      try {$copy=Join-Path $out 'roundtrip.pix'; $save.Invoke($obj,@($proj,$copy)); "ROUNDTRIP_OK $copy" | Add-Content "$out\load_attempt.txt"} catch {"ROUNDTRIP_FAIL $($_.Exception.ToString())" | Add-Content "$out\load_attempt.txt"}
+                    }
+                    break
+                  }
+                } catch {"FAIL $($t.FullName)::$($m.Name) $($_.Exception.ToString())" | Add-Content "$out\load_attempt.txt"}
+              }
+              if(Test-Path "$out\success_serializer.txt"){break}
+            }
+          } catch { $_.Exception.ToString() | Out-File "$out\fatal_netfx.txt" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visualpix-netfx-inspection
+          path: out/
+          retention-days: 7
