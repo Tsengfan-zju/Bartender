@@ -1,0 +1,105 @@
+name: VisualPix Reflect
+on:
+  push:
+    branches: [tmp-visualpix-build]
+    paths: ['.github/workflows/visualpix-reflect.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reflect:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare blank project and download official Visual Pix
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force out | Out-Null
+          $b64=(Get-Content vp-build/base.pix.b64 -Raw).Trim()
+          [IO.File]::WriteAllBytes((Join-Path $PWD 'out\base.pix'),[Convert]::FromBase64String($b64))
+          $url='https://www.sany-semi.com/download/visual-pix_setup_1-7-1-172/?wpdmdl=3783'
+          curl.exe -L --fail --max-time 180 -A 'Mozilla/5.0' -o out\visualpix_download.bin $url
+          $bytes=[IO.File]::ReadAllBytes('out\visualpix_download.bin')
+          "size=$($bytes.Length) first4=$([BitConverter]::ToString($bytes[0..3]))" | Out-File out\download_info.txt
+          if($bytes[0] -eq 0x50 -and $bytes[1] -eq 0x4b){
+            Rename-Item out\visualpix_download.bin visualpix.zip
+            Expand-Archive out\visualpix.zip -DestinationPath out\installer -Force
+            $exe=Get-ChildItem out\installer -Recurse -Filter '*.exe' | Where-Object {$_.Name -match '(?i)Visual.*PIX'} | Select-Object -First 1
+          } elseif($bytes[0] -eq 0x4d -and $bytes[1] -eq 0x5a){
+            Rename-Item out\visualpix_download.bin Visual-PIX_Setup.exe
+            $exe=Get-Item out\Visual-PIX_Setup.exe
+          } else { throw 'download is neither ZIP nor EXE' }
+          if(!$exe){ throw 'Visual Pix setup exe not found' }
+          $exe.FullName | Out-File out\installer_path.txt
+      - name: Silent install
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=(Get-Content out\installer_path.txt -Raw).Trim()
+          $install=Join-Path $PWD 'out\VisualPix'
+          New-Item -ItemType Directory -Force $install | Out-Null
+          $p=Start-Process -FilePath $exe -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$install") -PassThru -Wait
+          "exit=$($p.ExitCode)" | Out-File out\install_result.txt
+          Get-ChildItem $install -Recurse | Select-Object FullName,Length | Format-Table -AutoSize | Out-String -Width 300 | Out-File out\installed_files.txt
+          $vp=Get-ChildItem $install -Recurse -Filter 'Visual-PIX.exe' | Select-Object -First 1
+          if(!$vp){ throw 'Visual-PIX.exe not found after install' }
+          $vp.FullName | Out-File out\vp_path.txt
+      - name: Reflection dump and load blank pix
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Continue'
+          $vp=(Get-Content out\vp_path.txt -Raw).Trim()
+          Set-Location (Split-Path $vp)
+          try {
+            $asm=[Reflection.Assembly]::LoadFrom($vp)
+            "ASSEMBLY $($asm.FullName)" | Out-File "$env:GITHUB_WORKSPACE\out\reflection.txt"
+            $types=$asm.GetTypes()
+            foreach($tn in @('Visual_PIX.Model.PixProject','Visual_PIX.Model.PixLayer','Visual_PIX.Model.PixControl','Visual_PIX.Model.Controls.TextCtrl','Visual_PIX.Model.Controls.ButtonCtrl','Visual_PIX.Model.Controls.QRCodeCtrl','Visual_PIX.Model.Controls.ProtocolCtrl')){
+              $t=$types | Where-Object {$_.FullName -eq $tn} | Select-Object -First 1
+              if($t){
+                "`nTYPE $($t.FullName) BASE=$($t.BaseType.FullName)" | Add-Content "$env:GITHUB_WORKSPACE\out\reflection.txt"
+                $t.GetConstructors([Reflection.BindingFlags]'Public,NonPublic,Instance') | ForEach-Object {"CTOR $_"} | Add-Content "$env:GITHUB_WORKSPACE\out\reflection.txt"
+                $t.GetProperties([Reflection.BindingFlags]'Public,NonPublic,Instance,Static') | ForEach-Object {"PROP $($_.PropertyType.FullName) $($_.Name) R=$($_.CanRead) W=$($_.CanWrite)"} | Add-Content "$env:GITHUB_WORKSPACE\out\reflection.txt"
+                $t.GetFields([Reflection.BindingFlags]'Public,NonPublic,Instance,Static') | ForEach-Object {"FIELD $($_.FieldType.FullName) $($_.Name)"} | Add-Content "$env:GITHUB_WORKSPACE\out\reflection.txt"
+              }
+            }
+            $pixType=$types | Where-Object {$_.FullName -eq 'Visual_PIX.Model.PixProject'} | Select-Object -First 1
+            foreach($t in $types){
+              try {
+                $loadMethods=$t.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance') | Where-Object {$_.ReturnType -eq $pixType -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType -eq [string]}
+                if($loadMethods){
+                  "CANDIDATE $($t.FullName)" | Add-Content "$env:GITHUB_WORKSPACE\out\serializer_candidates.txt"
+                  $loadMethods | ForEach-Object {"  LOAD $_"} | Add-Content "$env:GITHUB_WORKSPACE\out\serializer_candidates.txt"
+                  $t.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance') | Where-Object {$_.GetParameters().Count -eq 2 -and $_.GetParameters()[0].ParameterType -eq $pixType -and $_.GetParameters()[1].ParameterType -eq [string]} | ForEach-Object {"  SAVE $_"} | Add-Content "$env:GITHUB_WORKSPACE\out\serializer_candidates.txt"
+                }
+              } catch {}
+            }
+            $blank=Join-Path $env:GITHUB_WORKSPACE 'out\base.pix'
+            $cands=$types | Where-Object {
+              try {($_.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance') | Where-Object {$_.ReturnType -eq $pixType -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType -eq [string]}).Count -gt 0} catch {$false}
+            }
+            foreach($t in $cands){
+              try {
+                $obj=[Activator]::CreateInstance($t,$true)
+                $m=$t.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance') | Where-Object {$_.ReturnType -eq $pixType -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType -eq [string]} | Select-Object -First 1
+                "TRY $($t.FullName)::$($m.Name)" | Add-Content "$env:GITHUB_WORKSPACE\out\load_attempt.txt"
+                $proj=$m.Invoke($obj,@($blank))
+                if($proj){
+                  "SUCCESS $($t.FullName)::$($m.Name)" | Add-Content "$env:GITHUB_WORKSPACE\out\load_attempt.txt"
+                  foreach($p in $pixType.GetProperties([Reflection.BindingFlags]'Public,NonPublic,Instance')){
+                    try { $v=$p.GetValue($proj); "PROP $($p.Name) TYPE=$($p.PropertyType.FullName) VALUE=$v" | Add-Content "$env:GITHUB_WORKSPACE\out\project_dump.txt" } catch { "PROP $($p.Name) ERR=$($_.Exception.Message)" | Add-Content "$env:GITHUB_WORKSPACE\out\project_dump.txt" }
+                  }
+                  $proj.GetType().AssemblyQualifiedName | Out-File "$env:GITHUB_WORKSPACE\out\project_type.txt"
+                  break
+                }
+              } catch { "FAIL $($t.FullName): $($_.Exception.ToString())" | Add-Content "$env:GITHUB_WORKSPACE\out\load_attempt.txt" }
+            }
+          } catch { $_.Exception.ToString() | Out-File "$env:GITHUB_WORKSPACE\out\fatal_reflection_error.txt" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visualpix-reflection
+          path: out/
+          retention-days: 7
