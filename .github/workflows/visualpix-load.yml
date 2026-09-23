@@ -1,0 +1,90 @@
+name: VisualPix Load Roundtrip
+on:
+  push:
+    branches: [tmp-visualpix-build]
+    paths: ['.github/workflows/visualpix-load.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  load:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install official Visual Pix
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force out | Out-Null
+          [IO.File]::WriteAllBytes((Join-Path $PWD 'out\base.pix'),[Convert]::FromBase64String((Get-Content vp-build/base.pix.b64 -Raw).Trim()))
+          & curl.exe -L --fail --max-time 180 -A 'Mozilla/5.0' -o out\vp.zip 'https://www.sany-semi.com/download/visual-pix_setup_1-7-1-172/?wpdmdl=3783'
+          Expand-Archive out\vp.zip -DestinationPath out\installer -Force
+          $setup=Get-ChildItem out\installer -Recurse -Filter 'Visual-PIX_Setup*.exe' | Select-Object -First 1
+          $install=Join-Path $PWD 'out\VisualPix'
+          $p=Start-Process $setup.FullName -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$install") -Wait -PassThru
+          if($p.ExitCode -ne 0){throw "setup exit $($p.ExitCode)"}
+      - name: Load, dump and roundtrip with vendor serializer
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $PWD 'out'
+          $install=Join-Path $out 'VisualPix'
+          Set-Location $install
+          $asm=[Reflection.Assembly]::LoadFrom((Join-Path $install 'Visual-PIX.exe'))
+          $t=$asm.GetType('blFUmdHRIKgcqLnrHkXULnrUGQNn',$true)
+          $pixType=$asm.GetType('Visual_PIX.Model.PixProject',$true)
+          $load=$t.GetMethod('rqkGbDgDKWruWOpLfoxBcumhVTMG',[Reflection.BindingFlags]'Public,Instance')
+          $save=$t.GetMethod('wHAMcrUVnVnATbRNFqXJTFWDNjDo',[Reflection.BindingFlags]'Public,Instance')
+          $obj=[Activator]::CreateInstance($t)
+          $blank=[string](Join-Path $out 'base.pix')
+          $proj=$load.Invoke($obj,[object[]]@($blank))
+          if($null -eq $proj){throw 'vendor load returned null'}
+          "LOAD_OK type=$($proj.GetType().FullName)" | Out-File "$out\load_ok.txt"
+          foreach($p in $pixType.GetProperties([Reflection.BindingFlags]'Public,Instance')){
+            try {
+              $v=$p.GetValue($proj,$null)
+              "PROP $($p.Name) TYPE=$($p.PropertyType.FullName) VALUE=$v" | Add-Content "$out\project_dump.txt"
+              if($v -is [System.Collections.IEnumerable] -and !($v -is [string])){
+                $i=0; foreach($item in $v){
+                  "  ITEM[$i] TYPE=$($item.GetType().FullName) VALUE=$item" | Add-Content "$out\project_dump.txt"
+                  if($item.GetType().FullName -eq 'Visual_PIX.Model.PixLayer'){
+                    foreach($lp in $item.GetType().GetProperties([Reflection.BindingFlags]'Public,Instance')){
+                      try {
+                        $lv=$lp.GetValue($item,$null)
+                        "    LPROP $($lp.Name) TYPE=$($lp.PropertyType.FullName) VALUE=$lv" | Add-Content "$out\project_dump.txt"
+                        if($lp.Name -eq 'Controls' -and $lv){$j=0;foreach($ctrl in $lv){"      CTRL[$j] TYPE=$($ctrl.GetType().FullName) NAME=$($ctrl.Name) ID=$($ctrl.Id) X=$($ctrl.X) Y=$($ctrl.Y) W=$($ctrl.Width) H=$($ctrl.Height)" | Add-Content "$out\project_dump.txt";$j++}}
+                      } catch {}
+                    }
+                  }
+                  $i++; if($i -gt 50){break}
+                }
+              }
+            } catch {"PROP_ERR $($p.Name) $($_.Exception.Message)" | Add-Content "$out\project_dump.txt"}
+          }
+          # Change only project name to prove editable vendor roundtrip.
+          $nameProp=$pixType.GetProperty('Name')
+          $old=[string]$nameProp.GetValue($proj,$null)
+          $nameProp.SetValue($proj,[string]'尿素泵串口屏_RT',$null)
+          $dest=[string](Join-Path $out 'roundtrip.pix')
+          $save.Invoke($obj,[object[]]@($proj,$dest)) | Out-Null
+          if(!(Test-Path $dest)){throw 'roundtrip file missing'}
+          "OLD_NAME=$old NEW_NAME=$($nameProp.GetValue($proj,$null)) SIZE=$((Get-Item $dest).Length)" | Out-File "$out\roundtrip_result.txt"
+          # Load saved project again
+          $proj2=$load.Invoke($obj,[object[]]@([string]$dest))
+          "RELOAD_NAME=$($nameProp.GetValue($proj2,$null)) LAYERS=$($proj2.Layers.Count)" | Out-File "$out\reload_result.txt"
+          # Dump constructors/properties of core controls and event type.
+          foreach($tn in @('Visual_PIX.Model.PixLayer','Visual_PIX.Model.Controls.TextCtrl','Visual_PIX.Model.Controls.ButtonCtrl','Visual_PIX.Model.Controls.NumberCtrl','Visual_PIX.Model.Controls.QRCodeCtrl','Visual_PIX.Model.Controls.ProtocolCtrl','Visual_PIX.Model.Controls.CtrlEvent')){
+            $ct=$asm.GetType($tn,$false)
+            if($ct){
+              "`r`nTYPE $tn" | Add-Content "$out\core_types.txt"
+              $ct.GetConstructors([Reflection.BindingFlags]'Public,NonPublic,Instance') | ForEach-Object {"CTOR $_"} | Add-Content "$out\core_types.txt"
+              $ct.GetProperties([Reflection.BindingFlags]'Public,NonPublic,Instance') | ForEach-Object {"PROP $($_.PropertyType.FullName) $($_.Name) R=$($_.CanRead) W=$($_.CanWrite)"} | Add-Content "$out\core_types.txt"
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visualpix-load-roundtrip
+          path: out/
+          retention-days: 7
