@@ -1,0 +1,120 @@
+name: VisualPix Diagnose
+on:
+  push:
+    branches: [tmp-visualpix-build]
+    paths:
+      - '.github/workflows/visualpix-diagnose.yml'
+      - 'vp-build/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild blank pix
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          $b64 = (Get-Content vp-build/base.pix.b64 -Raw).Trim()
+          [IO.File]::WriteAllBytes((Join-Path $PWD 'out\base.pix'), [Convert]::FromBase64String($b64))
+          Get-FileHash out\base.pix -Algorithm SHA256 | Format-List | Out-File out\base_pix_hash.txt
+      - name: Discover and download Visual Pix installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Continue'
+          $page='https://www.sany-semi.com/development-guide/'
+          try {
+            $r=Invoke-WebRequest -UseBasicParsing -Uri $page -MaximumRedirection 10
+            $r.Content | Out-File -Encoding utf8 out\development-guide.html
+            $all=[regex]::Matches($r.Content,'https?://[^\"''<>\s]+') | ForEach-Object {$_.Value -replace '&amp;','&'} | Sort-Object -Unique
+            $all | Out-File -Encoding utf8 out\all_urls.txt
+            $cand=$all | Where-Object {$_ -match '(?i)Visual.?PIX|Visual-PIX|\.exe($|\?)|\.zip($|\?)'}
+            $cand | Out-File -Encoding utf8 out\candidate_urls.txt
+            Write-Host 'Candidates:'
+            $cand | ForEach-Object {Write-Host $_}
+            $installer=$null
+            foreach($u in $cand){
+              if($u -match '(?i)Visual.?PIX|Visual-PIX'){
+                try {
+                  $dest='out\download.bin'
+                  Invoke-WebRequest -UseBasicParsing -Uri $u -OutFile $dest -MaximumRedirection 10
+                  if((Get-Item $dest).Length -gt 1000000){ $installer=$dest; break }
+                } catch { Write-Host "download candidate failed $u : $_" }
+              }
+            }
+            if($installer){
+              $bytes=[IO.File]::ReadAllBytes($installer)
+              if($bytes.Length -ge 2 -and $bytes[0] -eq 0x50 -and $bytes[1] -eq 0x4b){
+                Rename-Item $installer 'visualpix.zip'
+                Expand-Archive out\visualpix.zip -DestinationPath out\installer_unzip -Force
+                $exe=Get-ChildItem out\installer_unzip -Recurse -Filter '*.exe' | Where-Object {$_.Name -match '(?i)Visual'} | Select-Object -First 1
+              } else {
+                Rename-Item $installer 'Visual-PIX_Setup.exe'
+                $exe=Get-Item out\Visual-PIX_Setup.exe
+              }
+              if($exe){ $exe.FullName | Out-File out\installer_path.txt; Write-Host "INSTALLER=$($exe.FullName)" }
+            }
+          } catch { $_ | Out-String | Out-File out\page_error.txt }
+      - name: Install Visual Pix and reflect project model
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Continue'
+          if(!(Test-Path out\installer_path.txt)){ Write-Host 'No installer path; diagnostic only'; exit 0 }
+          $exe=(Get-Content out\installer_path.txt -Raw).Trim()
+          $install=Join-Path $PWD 'out\VisualPix'
+          New-Item -ItemType Directory -Force $install | Out-Null
+          $p=Start-Process -FilePath $exe -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$install") -PassThru -Wait
+          "installer exit=$($p.ExitCode)" | Out-File out\install_log.txt
+          Get-ChildItem $install -Recurse | Select-Object FullName,Length | Format-Table -AutoSize | Out-String -Width 300 | Out-File out\installed_files.txt
+          $vp=Get-ChildItem $install -Recurse -Filter 'Visual-PIX.exe' | Select-Object -First 1
+          if(!$vp){ $vp=Get-ChildItem $install -Recurse -Filter '*.exe' | Where-Object {$_.Name -match 'Visual'} | Select-Object -First 1 }
+          if(!$vp){ 'Visual PIX exe not found' | Out-File out\reflect_error.txt; exit 0 }
+          try {
+            $asm=[Reflection.Assembly]::LoadFrom($vp.FullName)
+            $asm.FullName | Out-File out\assembly.txt
+            $types=$asm.GetTypes()
+            $types | Where-Object {$_.FullName -match 'PixProject|PixLayer|PixControl|QRCode|Protocol|TextCtrl|ButtonCtrl'} | ForEach-Object {
+              "TYPE: $($_.FullName)"
+              $_.GetConstructors([Reflection.BindingFlags]'Public,NonPublic,Instance') | ForEach-Object {"  CTOR: $_"}
+              $_.GetProperties([Reflection.BindingFlags]'Public,NonPublic,Instance,Static') | ForEach-Object {"  PROP: $($_.PropertyType.FullName) $($_.Name) get=$($_.CanRead) set=$($_.CanWrite)"}
+              $_.GetFields([Reflection.BindingFlags]'Public,NonPublic,Instance,Static') | ForEach-Object {"  FIELD: $($_.FieldType.FullName) $($_.Name)"}
+            } | Out-File -Encoding utf8 out\model_types.txt
+
+            $pixType=$types | Where-Object {$_.FullName -eq 'Visual_PIX.Model.PixProject'} | Select-Object -First 1
+            $serializers=$types | Where-Object {
+              $_.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance') | Where-Object {
+                $_.ReturnType -eq $pixType -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType -eq [string]
+              }
+            }
+            foreach($st in $serializers){
+              "SERIALIZER TYPE: $($st.FullName)" | Add-Content out\serializer_candidates.txt
+              $st.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance') | Where-Object {$_.ReturnType -eq $pixType -or $_.GetParameters() | Where-Object {$_.ParameterType -eq $pixType}} | ForEach-Object {"  METHOD: $_"} | Add-Content out\serializer_candidates.txt
+            }
+            foreach($st in $serializers){
+              try {
+                $obj=[Activator]::CreateInstance($st,$true)
+                $m=$st.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance') | Where-Object {$_.ReturnType -eq $pixType -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType -eq [string]} | Select-Object -First 1
+                if($m){
+                  "TRY $($st.FullName).$($m.Name)" | Add-Content out\load_attempt.txt
+                  $proj=$m.Invoke($obj,@((Join-Path $PWD 'out\base.pix')))
+                  if($proj){
+                    "LOAD SUCCESS type=$($proj.GetType().FullName)" | Add-Content out\load_attempt.txt
+                    $proj.GetType().GetProperties([Reflection.BindingFlags]'Public,NonPublic,Instance') | ForEach-Object {
+                      try { "PROP $($_.Name) = $($_.GetValue($proj))" } catch { "PROP $($_.Name) ERROR $($_.Exception.Message)" }
+                    } | Add-Content out\project_dump.txt
+                    break
+                  }
+                }
+              } catch { "FAIL $($st.FullName): $($_.Exception.ToString())" | Add-Content out\load_attempt.txt }
+            }
+          } catch { $_.Exception.ToString() | Out-File out\reflect_error.txt }
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visualpix-diagnostics
+          path: out/
+          retention-days: 7
