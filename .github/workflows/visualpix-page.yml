@@ -1,0 +1,33 @@
+name: VisualPix Page Probe
+on:
+  push:
+    branches: [tmp-visualpix-build]
+    paths: ['.github/workflows/visualpix-page.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe SANY download page
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          $url='https://www.sany-semi.com/development-guide/'
+          curl.exe -L --max-time 30 -A 'Mozilla/5.0' -D out\headers.txt -o out\page.html $url
+          $html=Get-Content out\page.html -Raw
+          [regex]::Matches($html,'(?i)(?:https?:)?//[^\"''<>\s]+') | ForEach-Object {$_.Value} | Sort-Object -Unique | Out-File -Encoding utf8 out\urls.txt
+          Get-Content out\urls.txt | Where-Object {$_ -match '(?i)visual|pix|setup|download|\.exe|\.zip'} | Out-File -Encoding utf8 out\interesting.txt
+          Write-Host '=== INTERESTING ==='
+          Get-Content out\interesting.txt -ErrorAction SilentlyContinue
+          Write-Host '=== Visual lines ==='
+          Select-String -Path out\page.html -Pattern 'Visual','PIX','1.7.2.179','download' -CaseSensitive:$false | Select-Object -First 100 | ForEach-Object {$_.Line} | Out-File -Encoding utf8 out\matching_lines.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visualpix-page-probe
+          path: out/
+          retention-days: 7
