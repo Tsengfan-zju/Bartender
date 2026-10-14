@@ -44,7 +44,7 @@ jobs:
           cat             build-src/v11s-00             build-src/v11s-01x-*             build-src/v11s-02             build-src/v11s-03             build-src/v11s-04x-*             build-src/v11s-05             build-src/v11s-06             build-src/v11s-07             build-src/v11s-08x-*             build-src/v11s-09 > UreaClientApp-source-v1.1.0.zip
           echo "60999cf30324fc1b34e158b265e84589b4b3acd02a583f537b2f9bb0427b08ed  UreaClientApp-source-v1.1.0.zip" | sha256sum -c -
           unzip -o UreaClientApp-source-v1.1.0.zip
-          base64 -d build-src/v111-patch.b64 > /tmp/v111-patch.tar.gz
+          cat build-src/v111b64-* | base64 -d > /tmp/v111-patch.tar.gz
           echo "f53238427fa843b44c3d5533e4f90f3f9fd6d6410316866eba99fe3c01b863d2  /tmp/v111-patch.tar.gz" | sha256sum -c -
           tar -xzf /tmp/v111-patch.tar.gz -C UreaClientApp
           test -s UreaClientApp/app/src/main/java/com/urea/selfservice/client/UreaApplication.java
